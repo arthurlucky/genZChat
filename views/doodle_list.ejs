@@ -1,0 +1,59 @@
+<%- include('partials/header') %>
+
+<div class="max-w-xl mx-auto min-h-screen flex flex-col bg-dark-900 pb-24">
+    
+    <div class="p-6 flex justify-between items-center sticky top-0 bg-dark-900/95 backdrop-blur-sm z-20">
+        <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+            <i data-lucide="palette" class="w-6 h-6 text-indigo-500"></i> Galeri Doodle
+        </h1>
+        <a href="/dashboard" class="p-2 rounded-full hover:bg-white/5 text-gray-400 hover:text-white transition">
+            <i data-lucide="home" class="w-6 h-6"></i>
+        </a>
+    </div>
+
+    <div class="px-4 mb-6">
+        <form action="/doodle/create" method="POST" class="bg-dark-800 p-4 rounded-2xl border border-dark-700 flex gap-2 shadow-lg">
+            <input type="text" name="name" placeholder="Nama Kanvas Baru..." required class="flex-1 bg-dark-900 text-white text-sm px-4 py-2 rounded-xl outline-none border border-dark-700 focus:border-indigo-500 transition">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20">
+                <i data-lucide="plus" class="w-5 h-5"></i>
+            </button>
+        </form>
+    </div>
+
+    <div class="px-4 space-y-3 overflow-y-auto">
+        <% if(doodles.length === 0) { %>
+            <div class="text-center py-10 opacity-50">
+                <i data-lucide="edit-3" class="w-12 h-12 mx-auto mb-2 text-gray-500"></i>
+                <p class="text-gray-400 text-sm">Belum ada riwayat gambar.</p>
+            </div>
+        <% } else { %>
+            <% doodles.forEach(d => { %>
+                <div class="bg-dark-800 p-4 rounded-2xl border border-dark-700 hover:border-indigo-500/50 transition group relative">
+                    <a href="/doodle/<%= d.id %>" class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                                <i data-lucide="image" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-white font-bold text-sm"><%= d.name %></h3>
+                                <p class="text-[10px] text-gray-500">Oleh <%= d.creatorName %> • <%= new Date(d.createdAt).toLocaleDateString() %></p>
+                            </div>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-5 h-5 text-gray-600 group-hover:text-white transition"></i>
+                    </a>
+
+                    <% if(user.id === d.creatorId || user.role === 'admin') { %>
+                        <form action="/doodle/delete" method="POST" class="absolute top-4 right-12" onsubmit="return confirm('Hapus permanen?')">
+                            <input type="hidden" name="doodleId" value="<%= d.id %>">
+                            <button type="submit" class="text-red-900 hover:text-red-500 transition p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </form>
+                    <% } %>
+                </div>
+            <% }) %>
+        <% } %>
+    </div>
+</div>
+
+<script>lucide.createIcons();</script>
+<%- include('partials/system_scripts') %>
+</body>

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Infinite Doodle - GenZChat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { background-color: #0f172a; overflow: hidden; touch-action: none; user-select: none; }
+        .glass { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+        /* Animasi */
+        @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+        .animate-slide-down { animation: slideDown 0.3s ease-out; }
+    </style>
+</head>
+<body class="text-white cursor-crosshair">
+
+    <div class="absolute top-0 left-0 w-full z-50 glass border-b-0 rounded-b-3xl shadow-2xl animate-slide-down transition-transform duration-300" id="toolbar">
+        <div class="max-w-2xl mx-auto p-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/doodles" class="p-2 rounded-full hover:bg-white/10 transition"><i data-lucide="arrow-left" class="w-6 h-6"></i></a>
+                <div>
+                    <h1 class="font-bold text-sm sm:text-base flex items-center gap-2">
+                        <i data-lucide="infinity" class="w-4 h-4 text-primary-400"></i> <%= roomName || 'Infinite Canvas' %>
+                    </h1>
+                    <p class="text-[10px] text-gray-400 flex items-center gap-1">
+                        <span id="statusConn">Connecting...</span> • Zoom: <span id="zoomLevel">100%</span>
+                    </p>
+                </div>
+            </div>
+
+            <button onclick="copyLink()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-full text-xs font-bold transition shadow-lg shadow-indigo-500/20 active:scale-95">
+                <i data-lucide="share-2" class="w-4 h-4"></i> Invite
+            </button>
+        </div>
+
+        <div class="max-w-2xl mx-auto px-6 pb-4 pt-1 flex items-center justify-between gap-4 overflow-x-auto">
+            <div class="flex items-center gap-3">
+                <input type="color" id="colorPicker" value="#ffffff" class="w-8 h-8 rounded-full bg-transparent cursor-pointer border-2 border-gray-600 hover:scale-110 transition">
+                <div class="w-px h-6 bg-gray-700"></div>
+                <div class="flex flex-col w-24">
+                    <input type="range" id="brushSize" min="2" max="50" value="5" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button onclick="resetView()" class="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition" title="Reset Zoom">
+                    <i data-lucide="focus" class="w-5 h-5"></i>
+                </button>
+                <button onclick="setEraser()" id="btnEraser" class="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition" title="Penghapus">
+                    <i data-lucide="eraser" class="w-5 h-5"></i>
+                </button>
+                <button onclick="clearBoard()" class="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition" title="Hapus Semua">
+                    <i data-lucide="trash-2" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="hint" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-4 py-2 rounded-full text-[10px] text-gray-300 pointer-events-none z-40 transition-opacity duration-1000">
+        ✌️ Cubit untuk Zoom & Geser (2 Jari) • ☝️ Gambar (1 Jari)
+    </div>
+
+    <canvas id="canvas" class="block w-full h-full"></canvas>
+
+    <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-4 py-2 rounded-full text-xs opacity-0 transition-opacity duration-300 pointer-events-none z-50 shadow-xl font-bold">Link Disalin!</div>
+
+<script>
+    lucide.createIcons();
+    const socket = io();
+    const roomId = "<%= roomId %>";
+    const myUser = "<%= user.username %>";
+
+    // --- 1. SETUP CANVAS & STATE ---
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // State Kamera (View)
+    let camera = { x: 0, y: 0, z: 1 }; // x,y offset, z zoom scale
+    let isDragging = false;
+    let startDrag = { x: 0, y: 0 };
+    
+    // State Drawing
+    let isDrawing = false;
+    let eraserMode = false;
+    let lastDraw = { x: 0, y: 0 };
+    
+    // Data Storage (History Garis)
+    let lines = []; 
+    let currentLine = null;
+
+    // Gesture State (Pinch)
+    let initialPinchDistance = null;
+    let lastZoomScale = 1;
+
+    // Resize Handler
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        drawAll(); // Redraw saat resize
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Hide Hint
+    setTimeout(() => document.getElementById('hint').style.opacity = '0', 5000);
+
+    // --- 2. SOCKET CONNECTION ---
+    socket.emit('join_doodle_room', roomId);
+    
+    socket.on('connect', () => {
+        document.getElementById('statusConn').innerText = 'Online';
+        document.getElementById('statusConn').classList.add('text-green-400');
+    });
+
+    // LOAD HISTORY (Fitur Baru)
+    socket.on('load_history', (historyLines) => {
+        // Parse data dari server ke format lokal
+        historyLines.forEach(l => {
+            lines.push({
+                type: 'segment',
+                p0: {x: l.x0, y: l.y0},
+                p1: {x: l.x1, y: l.y1},
+                color: l.color,
+                width: l.width
+            });
+        });
+        drawAll();
+    });
+
+    // Terima Garis Baru
+    socket.on('doodle_draw', (lineData) => {
+        lines.push({
+            type: 'segment',
+            p0: {x: lineData.x0, y: lineData.y0},
+            p1: {x: lineData.x1, y: lineData.y1},
+            color: lineData.color,
+            width: lineData.width
+        });
+        drawAll();
+    });
+
+    socket.on('doodle_clear', () => {
+        lines = [];
+        drawAll();
+    });
+
+    // --- 3. CORE DRAWING ENGINE (INFINITE CANVAS) ---
+    function drawAll() {
+        // 1. Clear Screen
+        ctx.setTransform(1, 0, 0, 1, 0, 0); 
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // 2. Draw Grid
+        drawGrid();
+
+        // 3. Apply Camera
+        ctx.setTransform(camera.z, 0, 0, camera.z, camera.x, camera.y);
+
+        // 4. Render All Lines
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        for (let line of lines) {
+            ctx.beginPath();
+            ctx.strokeStyle = line.color;
+            ctx.lineWidth = line.width;
+            if(line.type === 'segment') {
+                ctx.moveTo(line.p0.x, line.p0.y);
+                ctx.lineTo(line.p1.x, line.p1.y);
+            }
+            ctx.stroke();
+        }
+
+        // 5. Render Current Line
+        if (currentLine) {
+            ctx.beginPath();
+            ctx.strokeStyle = currentLine.color;
+            ctx.lineWidth = currentLine.width;
+            if(currentLine.points.length > 0) {
+                ctx.moveTo(currentLine.points[0].x, currentLine.points[0].y);
+                for(let i=1; i<currentLine.points.length; i++){
+                    ctx.lineTo(currentLine.points[i].x, currentLine.points[i].y);
+                }
+            }
+            ctx.stroke();
+        }
+    }
+
+    function drawGrid() {
+        const gridSize = 50 * camera.z;
+        const offsetX = camera.x % gridSize;
+        const offsetY = camera.y % gridSize;
+
+        ctx.beginPath();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#1e293b'; 
+
+        for (let x = offsetX; x < canvas.width; x += gridSize) {
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, canvas.height);
+        }
+        for (let y = offsetY; y < canvas.height; y += gridSize) {
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+        }
+        ctx.stroke();
+    }
+
+    // Helper: Screen to World
+    function toWorld(screenX, screenY) {
+        return {
+            x: (screenX - camera.x) / camera.z,
+            y: (screenY - camera.y) / camera.z
+        };
+    }
+
+    // --- 4. INPUT HANDLING ---
+
+    // MOUSE
+    canvas.addEventListener('mousedown', e => {
+        if(e.button === 1 || e.shiftKey) { 
+            isDragging = true;
+            startDrag = { x: e.clientX, y: e.clientY };
+            document.body.style.cursor = 'grabbing';
+        } else {
+            startStroke(e.clientX, e.clientY);
+        }
+    });
+
+    canvas.addEventListener('mousemove', e => {
+        if(isDragging) {
+            const dx = e.clientX - startDrag.x;
+            const dy = e.clientY - startDrag.y;
+            camera.x += dx;
+            camera.y += dy;
+            startDrag = { x: e.clientX, y: e.clientY };
+            drawAll();
+        } else {
+            moveStroke(e.clientX, e.clientY);
+        }
+    });
+
+    canvas.addEventListener('mouseup', e => { endStroke(); isDragging = false; document.body.style.cursor = 'crosshair'; });
+    
+    // Zoom Wheel
+    canvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        const zoomIntensity = 0.1;
+        const delta = e.deltaY < 0 ? 1 : -1;
+        const factor = Math.exp(delta * zoomIntensity);
+        const mouseWorldBefore = toWorld(e.clientX, e.clientY);
+        
+        camera.z *= factor;
+        if(camera.z < 0.1) camera.z = 0.1;
+        if(camera.z > 5) camera.z = 5;
+
+        camera.x = e.clientX - mouseWorldBefore.x * camera.z;
+        camera.y = e.clientY - mouseWorldBefore.y * camera.z;
+        
+        updateZoomUI();
+        drawAll();
+    }, { passive: false });
+
+
+    // TOUCH (Mobile)
+    canvas.addEventListener('touchstart', e => {
+        if (e.touches.length === 1) {
+            startStroke(e.touches[0].clientX, e.touches[0].clientY);
+        } else if (e.touches.length === 2) {
+            isDrawing = false;
+            isDragging = true;
+            initialPinchDistance = getDistance(e.touches[0], e.touches[1]);
+            lastZoomScale = camera.z;
+            startDrag = { 
+                x: (e.touches[0].clientX + e.touches[1].clientX) / 2, 
+                y: (e.touches[0].clientY + e.touches[1].clientY) / 2 
+            };
+        }
+    }, {passive: false});
+
+    canvas.addEventListener('touchmove', e => {
+        e.preventDefault();
+        if (e.touches.length === 1 && !isDragging) {
+            moveStroke(e.touches[0].clientX, e.touches[0].clientY);
+        } else if (e.touches.length === 2) {
+            const currentDist = getDistance(e.touches[0], e.touches[1]);
+            const center = {
+                x: (e.touches[0].clientX + e.touches[1].clientX) / 2, 
+                y: (e.touches[0].clientY + e.touches[1].clientY) / 2 
+            };
+
+            if (initialPinchDistance > 0) {
+                const scaleChange = currentDist / initialPinchDistance;
+                const newScale = lastZoomScale * scaleChange;
+                const worldCenter = toWorld(center.x, center.y);
+                camera.z = Math.max(0.1, Math.min(newScale, 5));
+                camera.x = center.x - worldCenter.x * camera.z;
+                camera.y = center.y - worldCenter.y * camera.z;
+            }
+
+            const dx = center.x - startDrag.x;
+            const dy = center.y - startDrag.y;
+            camera.x += dx;
+            camera.y += dy;
+            
+            startDrag = center;
+            initialPinchDistance = currentDist;
+            lastZoomScale = camera.z;
+
+            updateZoomUI();
+            drawAll();
+        }
+    }, {passive: false});
+
+    canvas.addEventListener('touchend', e => {
+        endStroke();
+        if (e.touches.length < 2) {
+            isDragging = false;
+            initialPinchDistance = null;
+        }
+    });
+
+    // --- 5. DRAWING LOGIC ---
+    function startStroke(screenX, screenY) {
+        isDrawing = true;
+        const worldPos = toWorld(screenX, screenY);
+        lastDraw = worldPos;
+        currentLine = {
+            points: [worldPos],
+            color: eraserMode ? '#0f172a' : document.getElementById('colorPicker').value,
+            width: document.getElementById('brushSize').value
+        };
+    }
+
+    function moveStroke(screenX, screenY) {
+        if (!isDrawing) return;
+        const worldPos = toWorld(screenX, screenY);
+        currentLine.points.push(worldPos);
+        
+        socket.emit('doodle_draw', {
+            roomId,
+            line: {
+                x0: lastDraw.x, y0: lastDraw.y,
+                x1: worldPos.x, y1: worldPos.y,
+                color: currentLine.color,
+                width: currentLine.width
+            }
+        });
+        
+        lines.push({
+            type: 'segment',
+            p0: lastDraw,
+            p1: worldPos,
+            color: currentLine.color,
+            width: currentLine.width
+        });
+
+        lastDraw = worldPos;
+        drawAll();
+    }
+
+    function endStroke() { isDrawing = false; currentLine = null; }
+    function getDistance(t1, t2) { return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY); }
+    function updateZoomUI() { document.getElementById('zoomLevel').innerText = Math.round(camera.z * 100) + '%'; }
+
+    // --- 6. TOOLS ---
+    function setEraser() {
+        eraserMode = !eraserMode;
+        const btn = document.getElementById('btnEraser');
+        if(eraserMode) { btn.classList.add('bg-white', 'text-black'); btn.classList.remove('text-gray-400'); } 
+        else { btn.classList.remove('bg-white', 'text-black'); btn.classList.add('text-gray-400'); }
+    }
+
+    function resetView() { camera = { x: 0, y: 0, z: 1 }; updateZoomUI(); drawAll(); }
+
+    function clearBoard() {
+        if(confirm('Hapus seluruh kanvas?')) {
+            lines = [];
+            socket.emit('doodle_clear', roomId);
+            drawAll();
+        }
+    }
+
+    function copyLink() {
+        const link = window.location.href;
+        navigator.clipboard.writeText(link);
+        const t = document.getElementById('toast');
+        t.style.opacity = '1';
+        setTimeout(() => t.style.opacity = '0', 2000);
+    }
+</script>
+</body>
+</html>

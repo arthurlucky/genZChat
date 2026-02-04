@@ -1,0 +1,166 @@
+<%- include('partials/header') %>
+
+<div class="max-w-xl mx-auto min-h-screen flex flex-col bg-dark-900 pb-20">
+    
+    <div class="p-6 pb-2 sticky top-0 bg-dark-900/95 backdrop-blur-sm z-20">
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-2xl font-bold text-white tracking-tight">Obrolan</h1>
+            <div class="flex gap-3">
+                <a href="/dashboard" class="p-2 rounded-full hover:bg-white/5 text-gray-400 hover:text-white transition">
+                    <i data-lucide="user" class="w-6 h-6"></i>
+                </a>
+            </div>
+        </div>
+        
+        <div class="relative group">
+            <i data-lucide="search" class="absolute left-4 top-3 w-4 h-4 text-gray-500 group-focus-within:text-primary-500 transition"></i>
+            <input type="text" id="searchChat" onkeyup="filterChats()" placeholder="Cari pesan atau grup..." 
+                class="w-full bg-dark-800 text-white text-sm py-3 pl-10 pr-4 rounded-2xl border border-transparent focus:border-primary-500/50 outline-none transition shadow-sm">
+        </div>
+    </div>
+
+    <div class="flex-1 px-4 mt-2 space-y-2 overflow-y-auto" id="chatContainer">
+        <% if(rooms.length === 0) { %>
+            <div class="flex flex-col items-center justify-center h-64 text-center opacity-50">
+                <i data-lucide="message-circle" class="w-12 h-12 mb-3 text-gray-600"></i>
+                <p class="text-gray-400 text-sm">Belum ada obrolan.</p>
+                <p class="text-gray-600 text-xs">Ketuk + untuk memulai.</p>
+            </div>
+        <% } else { %>
+            <% rooms.forEach(room => { %>
+                <a href="/chat/<%= room.id %>" class="chat-item flex items-center gap-4 p-4 rounded-2xl hover:bg-dark-800 border border-transparent hover:border-dark-700 transition group relative overflow-hidden">
+                    <div class="relative shrink-0">
+                        <img src="<%= room.icon || 'https://ui-avatars.com/api/?name=' + room.name %>" class="w-12 h-12 rounded-full object-cover bg-dark-700 border border-dark-600 group-hover:border-gray-500 transition">
+                        <% if(room.online) { %>
+                            <span class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-dark-900 rounded-full"></span>
+                        <% } %>
+                    </div>
+                    
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-baseline mb-0.5">
+                            <h3 class="text-white font-bold text-sm truncate pr-2 group-hover:text-primary-400 transition"><%= room.name %></h3>
+                            </div>
+                        <p class="text-gray-500 text-xs truncate group-hover:text-gray-400 transition">
+                            <% if(room.type === 'group') { %><i data-lucide="users" class="w-3 h-3 inline mr-1 opacity-70"></i><% } %>
+                            <%= room.lastMsg %>
+                        </p>
+                    </div>
+                </a>
+            <% }) %>
+        <% } %>
+    </div>
+
+    <button onclick="document.getElementById('modalNewChat').classList.remove('hidden')" 
+        class="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-tr from-primary-600 to-purple-600 text-white rounded-full shadow-lg shadow-primary-600/40 flex items-center justify-center hover:scale-110 active:scale-95 transition z-30">
+        <i data-lucide="plus" class="w-7 h-7"></i>
+    </button>
+
+    <div id="modalNewChat" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+        <div class="bg-dark-800 w-full max-w-sm rounded-3xl border border-dark-700 p-6 animate-slide-up shadow-2xl relative">
+            
+            <button onclick="document.getElementById('modalNewChat').classList.add('hidden')" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <h2 class="text-lg font-bold text-white mb-6">Mulai Obrolan</h2>
+
+            <div class="flex bg-dark-900 p-1 rounded-xl mb-4">
+                <button onclick="switchTab('private')" id="btnPrivate" class="flex-1 py-2 text-xs font-bold rounded-lg bg-dark-700 text-white shadow transition">Personal</button>
+                <button onclick="switchTab('group')" id="btnGroup" class="flex-1 py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white transition">Grup Baru</button>
+            </div>
+
+            <div id="tabPrivate" class="h-64 overflow-y-auto custom-scrollbar space-y-2">
+                <% if(contacts.length === 0) { %>
+                    <div class="text-center py-8">
+                        <p class="text-gray-500 text-xs">Belum ada teman.</p>
+                        <a href="/dashboard" class="text-primary-400 text-xs hover:underline mt-1 block">Cari teman di Dashboard</a>
+                    </div>
+                <% } else { %>
+                    <p class="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-2">Teman Kamu</p>
+                    <% contacts.forEach(c => { %>
+                        <form action="/chat/create-private" method="POST">
+                            <input type="hidden" name="targetId" value="<%= c.id %>">
+                            <button type="submit" class="w-full flex items-center gap-3 p-2 hover:bg-dark-700 rounded-xl transition group text-left">
+                                <img src="<%= c.profilePic %>" class="w-10 h-10 rounded-full bg-dark-600 object-cover">
+                                <div>
+                                    <p class="text-white text-xs font-bold"><%= c.username %></p>
+                                    <p class="text-gray-500 text-[10px]"><%= c.moots ? c.moots.text : 'No Status' %></p>
+                                </div>
+                                <i data-lucide="message-circle" class="w-4 h-4 ml-auto text-gray-600 group-hover:text-primary-400"></i>
+                            </button>
+                        </form>
+                    <% }) %>
+                <% } %>
+            </div>
+
+            <div id="tabGroup" class="hidden">
+                <form action="/chat/create-group" method="POST" enctype="multipart/form-data" class="space-y-4">
+                    <div class="text-center">
+                        <label class="inline-block relative cursor-pointer group">
+                            <div class="w-20 h-20 bg-dark-900 rounded-full flex items-center justify-center border-2 border-dashed border-dark-600 group-hover:border-primary-500 transition overflow-hidden">
+                                <img id="grpPreview" class="hidden w-full h-full object-cover">
+                                <i id="grpIcon" data-lucide="camera" class="w-6 h-6 text-gray-500 group-hover:text-primary-400"></i>
+                            </div>
+                            <input type="file" name="groupIcon" class="hidden" accept="image/*" onchange="previewGrp(this)">
+                        </label>
+                        <p class="text-[10px] text-gray-500 mt-2">Ikon Grup</p>
+                    </div>
+                    
+                    <div class="bg-dark-900 p-2 rounded-xl flex items-center border border-dark-700 focus-within:border-primary-500 transition">
+                        <input type="text" name="groupName" required placeholder="Nama Grup..." class="bg-transparent w-full text-xs px-2 text-white outline-none placeholder-gray-600">
+                    </div>
+
+                    <button type="submit" class="w-full bg-primary-600 hover:bg-primary-500 text-white py-3 rounded-xl text-xs font-bold transition shadow-lg">
+                        Buat Grup
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    lucide.createIcons();
+
+    function filterChats() {
+        const input = document.getElementById('searchChat').value.toLowerCase();
+        const items = document.getElementsByClassName('chat-item');
+        for (let i = 0; i < items.length; i++) {
+            const name = items[i].getElementsByTagName('h3')[0].innerText.toLowerCase();
+            items[i].style.display = name.includes(input) ? "flex" : "none";
+        }
+    }
+
+    function switchTab(tab) {
+        const btnP = document.getElementById('btnPrivate');
+        const btnG = document.getElementById('btnGroup');
+        const contentP = document.getElementById('tabPrivate');
+        const contentG = document.getElementById('tabGroup');
+
+        if(tab === 'private') {
+            btnP.classList.add('bg-dark-700', 'text-white', 'shadow'); btnP.classList.remove('text-gray-400');
+            btnG.classList.remove('bg-dark-700', 'text-white', 'shadow'); btnG.classList.add('text-gray-400');
+            contentP.classList.remove('hidden'); contentG.classList.add('hidden');
+        } else {
+            btnG.classList.add('bg-dark-700', 'text-white', 'shadow'); btnG.classList.remove('text-gray-400');
+            btnP.classList.remove('bg-dark-700', 'text-white', 'shadow'); btnP.classList.add('text-gray-400');
+            contentG.classList.remove('hidden'); contentP.classList.add('hidden');
+        }
+    }
+
+    function previewGrp(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('grpPreview').src = e.target.result;
+                document.getElementById('grpPreview').classList.remove('hidden');
+                document.getElementById('grpIcon').classList.add('hidden');
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+</script>
+<%- include('partials/system_scripts') %>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GenZChat</title>
+    <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="/manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = { darkMode: 'class', theme: { extend: { colors: { dark: { 900: '#0f172a', 800: '#1e293b', 700: '#334155' }, primary: { 500: '#6366f1', 600: '#4f46e5' } } } } }
+    </script>
+    <style>
+        .glass { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .text-rainbow { background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff); -webkit-background-clip: text; color: transparent; animation: rainbow 5s linear infinite; }
+        @keyframes rainbow { 0% { background-position: 0% 50%; } 100% { background-position: 100% 50%; } }
+        /* Style lainnya sesuai selera */
+    </style>
+</head>
+<body class="bg-dark-900 text-gray-100 font-sans min-h-screen pb-safe">
+
+<script>
+    const publicVapidKey = 'BD7m1QPVkSf8e8mNmgyZVX5lBWVAXGzZJKstRoeybfKZlZ_wHCfkJZwa69c1L9z5jZnEus55yHvNpWRVn85ULt0';
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').then(reg => {
+            console.log('SW Registered');
+            if(Notification.permission === 'default') {
+                Notification.requestPermission().then(permission => {
+                    if(permission === 'granted') subscribeUser(reg);
+                });
+            } else if(Notification.permission === 'granted') {
+                subscribeUser(reg);
+            }
+        });
+    }
+
+    async function subscribeUser(reg) {
+        try {
+            const subscription = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+            });
+            await fetch('/subscribe', {
+                method: 'POST',
+                body: JSON.stringify(subscription),
+                headers: { 'Content-Type': 'application/json' }
+            });
+            console.log('Subscribed to Push');
+        } catch(e) { console.error('Sub fail', e); }
+    }
+
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+        return outputArray;
+    }
+</script>

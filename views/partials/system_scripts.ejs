@@ -1,0 +1,83 @@
+<script src="/socket.io/socket.io.js"></script>
+
+<div id="toastNotification" class="fixed top-5 right-5 z-[9999] transform translate-x-[150%] transition-transform duration-500 ease-out max-w-sm w-full md:w-80 pointer-events-none">
+    <div class="bg-gray-800 border-l-4 border-rose-500 rounded-lg shadow-2xl p-4 flex items-start gap-3 relative overflow-hidden pointer-events-auto">
+        <div class="absolute inset-0 bg-rose-500 opacity-5 pointer-events-none"></div>
+
+        <div class="flex-shrink-0 mt-0.5">
+            <div class="bg-rose-500/20 p-2 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-rose-400"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            </div>
+        </div>
+
+        <div class="flex-1 min-w-0">
+            <h4 class="text-sm font-bold text-white mb-0.5 truncate" id="toastTitle">Info System</h4>
+            <p class="text-xs text-gray-300 leading-snug break-words" id="toastBody">
+                Menunggu notifikasi...
+            </p>
+        </div>
+
+        <button onclick="hideToast()" class="text-gray-500 hover:text-white transition focus:outline-none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+    </div>
+</div>
+
+<script>
+    // 1. Pastikan Socket Konek
+    // Gunakan window.socket kalau sudah ada, atau buat baru
+    var socket = window.socket || io();
+    
+    let toastTimeout;
+    
+    // Suara Notifikasi (Opsional)
+    const notifAudio = new Audio('https://cdn.freesound.org/previews/536/536108_10672534-lq.mp3'); 
+
+    // --- DEBUGGING ---
+    socket.on('connect', () => {
+        console.log("✅ Socket System Terhubung!");
+    });
+
+    // --- HANDLE NOTIFIKASI ---
+    socket.on('new_notification', (data) => {
+        console.log("🔔 Pesan Masuk:", data); // Cek Console Browser (F12)
+
+        const toast = document.getElementById('toastNotification');
+        const title = document.getElementById('toastTitle');
+        const body = document.getElementById('toastBody');
+
+        // Isi Data
+        title.innerText = data.title || "PENGUMUMAN";
+        body.innerText = data.body || "Pesan kosong";
+
+        // Tampilkan (Geser Masuk)
+        toast.classList.remove('translate-x-[150%]');
+
+        // Mainkan Suara
+        notifAudio.play().catch(e => console.log("Audio blocked"));
+        if (navigator.vibrate) navigator.vibrate(200);
+
+        // Reset Timer
+        if (toastTimeout) clearTimeout(toastTimeout);
+
+        // Auto Hilang 5 Detik
+        toastTimeout = setTimeout(() => {
+            hideToast();
+        }, 5000);
+    });
+
+    function hideToast() {
+        const toast = document.getElementById('toastNotification');
+        toast.classList.add('translate-x-[150%]'); // Geser Keluar
+    }
+
+    // --- HANDLE LOGOUT & MAINTENANCE ---
+    socket.on('force_logout', () => {
+        alert("AKUN DIBANNED ADMIN!");
+        window.location.href = '/logout';
+    });
+    
+    socket.on('server_maintenance', () => {
+        window.location.reload();
+    });
+</script>

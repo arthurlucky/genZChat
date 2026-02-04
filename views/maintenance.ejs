@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Under Maintenance - GenZChat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { background-color: #0f172a; color: white; }
+        .animate-wrench { animation: wrench 2.5s infinite ease-in-out; }
+        @keyframes wrench {
+            0% { transform: rotate(0deg); }
+            10% { transform: rotate(10deg); }
+            20% { transform: rotate(-10deg); }
+            30% { transform: rotate(10deg); }
+            40% { transform: rotate(-10deg); }
+            100% { transform: rotate(0deg); }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col justify-center items-center p-6 text-center">
+
+    <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl border border-gray-700 max-w-md w-full relative overflow-hidden">
+        
+        <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-500 via-yellow-500 to-red-500"></div>
+
+        <div class="text-7xl text-yellow-500 mb-6 flex justify-center">
+            <i class="fas fa-tools animate-wrench"></i>
+        </div>
+
+        <h1 class="text-3xl font-bold mb-2 tracking-wide">SERVER DIPERBAIKI</h1>
+        <p class="text-gray-400 mb-8 text-sm leading-relaxed">
+            Admin sedang melakukan update sistem atau perbaikan database.
+            <br>Fitur chat dimatikan sementara demi keamanan data.
+        </p>
+        
+        <div class="w-full bg-gray-700 rounded-full h-1.5 mb-6 overflow-hidden">
+            <div class="bg-yellow-500 h-1.5 rounded-full animate-progress" style="width: 50%"></div>
+        </div>
+
+        <button onclick="location.reload()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl transition transform hover:scale-105 active:scale-95 shadow-lg shadow-indigo-500/30">
+            <i class="fas fa-sync-alt mr-2"></i> Coba Refresh
+        </button>
+
+        <p class="mt-6 text-xs text-gray-600">GenZChat System &copy; 2026</p>
+    </div>
+
+    <script>
+        // Logika Auto-Refresh kalau Maintenance selesai
+        const socket = io();
+
+        // 1. Jika Admin mematikan maintenance, server kirim broadcast -> kita refresh
+        socket.on('new_notification', (data) => {
+            // Biasanya admin kirim broadcast "Maintenance Selesai"
+            setTimeout(() => { location.reload(); }, 2000);
+        });
+
+        // 2. Jika Admin menyalakan maintenance (double check)
+        socket.on('server_maintenance', () => {
+            // Tetap di sini
+            console.log("Server masih maintenance...");
+        });
+    </script>
+
+    <style>
+        .animate-progress {
+            animation: progress 2s infinite linear;
+            width: 100%;
+            transform-origin: 0% 50%;
+        }
+        @keyframes progress {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+    </style>
+
+</body>
+</html>

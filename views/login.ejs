@@ -1,0 +1,54 @@
+<%- include('partials/header') %>
+
+<div class="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <div class="absolute top-[-20%] left-[-10%] w-96 h-96 bg-primary-600 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 animate-pulse"></div>
+    <div class="absolute bottom-[-20%] right-[-10%] w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 animate-pulse"></div>
+
+    <div class="w-full max-w-md glass p-8 rounded-3xl shadow-2xl z-10 animate-slide-up border-t border-white/10">
+        <div class="text-center mb-8">
+            <div class="w-16 h-16 bg-gradient-to-tr from-primary-500 to-purple-500 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-primary-500/30">
+                <i data-lucide="message-circle" class="text-white w-8 h-8"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-white mb-1">Welcome Back</h1>
+            <p class="text-gray-400 text-sm">Sign in to continue chatting</p>
+        </div>
+
+        <% if (msg && msg.length > 0) { %>
+            <div class="bg-red-500/10 border border-red-500/20 text-red-200 px-4 py-3 rounded-xl mb-6 text-xs flex items-center gap-2">
+                <i data-lucide="alert-circle" class="w-4 h-4"></i> <%= msg %>
+            </div>
+        <% } %>
+
+        <form action="/login" method="POST" class="space-y-4">
+            <div class="relative group">
+                <i data-lucide="mail" class="absolute left-4 top-3.5 text-gray-500 w-5 h-5 group-focus-within:text-primary-500 transition"></i>
+                <input type="email" name="email" placeholder="Email Address" required 
+                    class="w-full bg-dark-800/50 border border-dark-700 text-white rounded-xl pl-12 pr-4 py-3.5 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition placeholder-gray-600">
+            </div>
+            
+            <div class="relative group">
+                <i data-lucide="lock" class="absolute left-4 top-3.5 text-gray-500 w-5 h-5 group-focus-within:text-primary-500 transition"></i>
+                <input type="password" name="password" placeholder="Password" required 
+                    class="w-full bg-dark-800/50 border border-dark-700 text-white rounded-xl pl-12 pr-4 py-3.5 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition placeholder-gray-600">
+            </div>
+
+            <button type="submit" class="w-full bg-gradient-to-r from-primary-600 to-purple-600 hover:opacity-90 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-primary-600/20 transform transition active:scale-[0.98] flex items-center justify-center gap-2">
+                <span>Sign In</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </button>
+        </form>
+
+        <div class="mt-8 text-center">
+            <p class="text-gray-500 text-sm">
+                Don't have an account? 
+                <a href="/register" class="text-primary-400 font-bold hover:text-primary-300 transition ml-1">Register</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+    lucide.createIcons();
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+</script>
+</body>
+</html>

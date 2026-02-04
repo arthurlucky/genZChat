@@ -1,0 +1,328 @@
+<%- include('partials/header') %>
+<script src="/socket.io/socket.io.js"></script>
+
+<div class="max-w-xl mx-auto min-h-screen flex flex-col pb-24">
+    
+    <div class="p-6 flex justify-between items-center animate-fade-in">
+        <h1 class="text-xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">Dashboard</h1>
+        <a href="/logout" class="text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/20 text-xs flex items-center gap-1 transition">
+            <i data-lucide="log-out" class="w-3 h-3"></i> Logout
+        </a>
+    </div>
+
+    <div class="mx-4 p-6 glass rounded-3xl relative overflow-hidden group animate-slide-up">
+        <div class="absolute top-0 left-0 w-full h-32 opacity-20 transition duration-500" style="background: <%= roleData.color %>; filter: blur(40px);"></div>
+        
+        <div class="relative z-10 flex flex-col items-center">
+            <div class="relative">
+                <img src="<%= user.profilePic %>" class="w-24 h-24 rounded-full object-cover border-4 border-dark-900 shadow-xl transition transform group-hover:scale-105">
+                <div class="absolute bottom-0 right-0 bg-dark-800 text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-dark-700 flex items-center gap-1">
+                    <i data-lucide="shield" class="w-3 h-3 text-primary-400"></i> <%= user.role %>
+                </div>
+            </div>
+            
+            <h2 class="mt-4 text-2xl font-bold tracking-tight text-center" style="background: <%= roleData.color %>; -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                <%= user.username %>
+            </h2>
+            
+            <div class="mt-2 flex items-center gap-2 bg-dark-900/50 px-3 py-1 rounded-full border border-white/5 cursor-pointer hover:bg-dark-900 transition active:scale-95" onclick="navigator.clipboard.writeText('<%= user.customId %>'); alert('ID Disalin!')">
+                <i data-lucide="fingerprint" class="w-3 h-3 text-gray-400"></i>
+                <span class="text-xs font-mono text-gray-300"><%= user.customId %></span>
+            </div>
+
+            <% if(user.moots.text) { %>
+                <div class="mt-4 px-4 py-2 rounded-xl bg-white/5 border border-white/5 backdrop-blur-sm max-w-full">
+                    <p class="text-sm italic truncate <%= user.moots.color === 'rainbow' ? 'text-rainbow' : '' %>" 
+                       style="<%= user.moots.color !== 'rainbow' ? 'color:' + user.moots.color : '' %>">
+                        "<%= user.moots.text %>"
+                    </p>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 px-4 mt-6 animate-slide-up" style="animation-delay: 0.1s;">
+        
+        <a href="/chat" class="group bg-primary-600 p-5 rounded-2xl flex flex-col items-center justify-center text-white shadow-lg shadow-primary-600/20 hover:scale-[1.02] transition active:scale-95">
+            <div class="p-3 bg-white/10 rounded-full mb-3 group-hover:bg-white/20 transition">
+                <i data-lucide="message-square" class="w-6 h-6"></i>
+            </div>
+            <span class="font-bold">Chat</span>
+            <span class="text-[10px] opacity-70">Pesan & Grup</span>
+        </a>
+
+        <a href="/doodles" class="group bg-indigo-600 p-5 rounded-2xl flex flex-col items-center justify-center text-white shadow-lg shadow-indigo-600/20 hover:scale-[1.02] transition active:scale-95">
+            <div class="p-3 bg-white/10 rounded-full mb-3 group-hover:bg-white/20 transition">
+                <i data-lucide="palette" class="w-6 h-6"></i>
+            </div>
+            <span class="font-bold">Live Doodle</span>
+            <span class="text-[10px] opacity-70">Galeri & History</span>
+        </a>
+        
+        <a href="/music-list" class="group bg-rose-600 p-5 rounded-2xl flex flex-col items-center justify-center text-white shadow-lg shadow-rose-600/20 hover:scale-[1.02] transition active:scale-95">
+    <div class="p-3 bg-white/10 rounded-full mb-3 group-hover:bg-white/20 transition">
+        <i data-lucide="headphones" class="w-6 h-6"></i>
+    </div>
+    <span class="font-bold">Music Vibe</span>
+    <span class="text-[10px] opacity-70">Room & History</span>
+</a>
+        
+        
+        <% if(user.role === 'admin') { %>
+            <a href="/admin" class="col-span-2 group bg-dark-800 border border-dark-700 p-4 rounded-2xl flex items-center justify-center gap-3 text-gray-300 hover:text-white hover:border-gray-600 transition active:scale-95 mt-2">
+                <i data-lucide="settings-2" class="w-5 h-5"></i>
+                <span class="font-bold text-sm">Admin Panel</span>
+            </a>
+        <% } %>
+
+    </div>
+
+    <div class="px-4 mt-6 animate-slide-up" style="animation-delay: 0.2s;">
+        <div class="glass p-5 rounded-2xl border border-dark-700 space-y-6">
+            
+            <div>
+                <h3 class="text-white font-bold text-sm mb-3 flex items-center gap-2">
+                    <i data-lucide="search" class="w-4 h-4 text-primary-400"></i> Cari Teman
+                </h3>
+                <div class="flex gap-2">
+                    <input type="text" id="searchInput" placeholder="Cari username..." class="bg-dark-900/50 flex-1 text-xs px-4 py-2.5 rounded-xl border border-dark-700 focus:border-primary-500 outline-none text-white transition">
+                    <button onclick="searchUser()" class="bg-primary-600 hover:bg-primary-500 text-white p-2.5 rounded-xl transition active:scale-90">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div id="searchResults" class="mt-2 space-y-2"></div>
+            </div>
+
+            <hr class="border-white/5">
+
+            <% if(typeof requests !== 'undefined' && requests.length > 0) { %>
+            <div>
+                <h3 class="text-white font-bold text-sm mb-3 flex items-center gap-2">
+                    <i data-lucide="bell" class="w-4 h-4 text-yellow-400"></i> Permintaan Pertemanan
+                </h3>
+                <div class="space-y-2">
+                    <% requests.forEach(reqUser => { %>
+                        <div class="bg-dark-900/50 p-3 rounded-xl flex items-center justify-between border border-dark-700">
+                            <div class="flex items-center gap-3">
+                                <img src="<%= reqUser.profilePic %>" class="w-8 h-8 rounded-full bg-dark-800 object-cover">
+                                <span class="text-white text-xs font-bold"><%= reqUser.username %></span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="friendAction('accept', '<%= reqUser.id %>')" class="bg-green-600/20 text-green-400 p-1.5 rounded-lg hover:bg-green-600 hover:text-white transition">
+                                    <i data-lucide="check" class="w-3 h-3"></i>
+                                </button>
+                                <button onclick="friendAction('reject', '<%= reqUser.id %>')" class="bg-red-600/20 text-red-400 p-1.5 rounded-lg hover:bg-red-600 hover:text-white transition">
+                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                        </div>
+                    <% }) %>
+                </div>
+            </div>
+            <hr class="border-white/5">
+            <% } %>
+
+            <div>
+                <h3 class="text-white font-bold text-sm mb-3 flex items-center gap-2">
+                    <i data-lucide="users" class="w-4 h-4 text-primary-400"></i> Daftar Teman (<%= typeof friends !== 'undefined' ? friends.length : 0 %>)
+                </h3>
+                
+                <% if(typeof friends === 'undefined' || friends.length === 0) { %>
+                    <p class="text-gray-500 text-xs italic text-center py-2">Belum ada teman.</p>
+                <% } else { %>
+                    <div class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                        <% friends.forEach(f => { %>
+                            <div class="bg-dark-900/50 p-3 rounded-xl flex items-center justify-between border border-dark-700 group hover:border-primary-500/30 transition">
+                                <div class="flex items-center gap-3">
+                                    <img src="<%= f.profilePic %>" class="w-8 h-8 rounded-full bg-dark-800 object-cover">
+                                    <span class="text-white text-xs font-bold"><%= f.username %></span>
+                                </div>
+                                <div class="flex gap-2">
+                                    <form action="/chat/create-private" method="POST">
+                                        <input type="hidden" name="targetId" value="<%= f.id %>">
+                                        <button type="submit" class="bg-primary-600/20 text-primary-400 p-1.5 rounded-lg hover:bg-primary-600 hover:text-white transition" title="Chat">
+                                            <i data-lucide="message-circle" class="w-3 h-3"></i>
+                                        </button>
+                                    </form>
+                                    <button onclick="if(confirm('Hapus pertemanan dengan <%= f.username %>?')) friendAction('delete', '<%= f.id %>')" class="bg-red-600/20 text-red-400 p-1.5 rounded-lg hover:bg-red-600 hover:text-white transition opacity-0 group-hover:opacity-100" title="Hapus Teman">
+                                        <i data-lucide="trash-2" class="w-3 h-3"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        <% }) %>
+                    </div>
+                <% } %>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="px-4 mt-6 animate-slide-up" style="animation-delay: 0.3s;">
+        <div class="glass p-5 rounded-2xl border border-dark-700 space-y-6">
+            
+            <div>
+                <h3 class="text-white font-bold text-sm mb-3 flex items-center gap-2">
+                    <i data-lucide="user-edit" class="w-4 h-4 text-primary-400"></i> Ganti Username
+                </h3>
+                <form action="/update-username" method="POST" class="flex gap-2">
+                    <div class="bg-dark-900/50 p-2 rounded-xl flex-1 flex items-center border border-dark-700 focus-within:border-primary-500 transition">
+                        <i data-lucide="at-sign" class="w-4 h-4 text-gray-500 ml-2"></i>
+                        <input type="text" name="newUsername" value="<%= user.username %>" required minlength="3" 
+                            class="bg-transparent w-full text-xs px-2 text-white outline-none placeholder-gray-600 font-bold" placeholder="Username baru...">
+                    </div>
+                    <button type="submit" class="bg-dark-800 hover:bg-primary-600 hover:text-white text-gray-400 p-2.5 rounded-xl border border-dark-700 transition shadow-lg active:scale-90" title="Simpan">
+                        <i data-lucide="check" class="w-4 h-4"></i>
+                    </button>
+                </form>
+            </div>
+
+            <hr class="border-white/5">
+
+            <div>
+                <h3 class="text-white font-bold text-sm mb-3 flex items-center gap-2">
+                    <i data-lucide="palette" class="w-4 h-4 text-primary-400"></i> Tampilan Profil
+                </h3>
+                
+                <form action="/update-profile" method="POST" enctype="multipart/form-data" class="space-y-3">
+                    
+                    <div class="bg-dark-900/50 p-2 rounded-xl flex items-center border border-dark-700 focus-within:border-primary-500 transition relative">
+                        <i data-lucide="type" class="w-4 h-4 text-gray-500 ml-2"></i>
+                        <input type="text" name="mootsText" value="<%= user.moots.text %>" placeholder="Status / Info..." class="bg-transparent w-full text-xs px-2 text-white outline-none placeholder-gray-600">
+                        
+                        <% if(roleData.canRgb) { %>
+                            <input type="color" id="colorPicker" name="mootsColor" value="<%= user.moots.color === 'rainbow' ? '#ffffff' : user.moots.color %>" 
+                                class="w-6 h-6 rounded border-none bg-transparent cursor-pointer transition-opacity duration-300" title="Pilih Warna">
+                        <% } %>
+                    </div>
+
+                    <% if(roleData.canRgb) { %>
+                        <label class="flex items-center justify-between bg-dark-900/50 p-3 rounded-xl border border-dark-700 cursor-pointer hover:bg-dark-800 transition group">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="zap" class="w-4 h-4 text-yellow-500 group-hover:text-yellow-400 transition"></i>
+                                <span class="text-xs text-gray-300 font-bold bg-gradient-to-r from-red-500 via-yellow-500 to-blue-500 text-transparent bg-clip-text">Rainbow Mode</span>
+                            </div>
+                            <div class="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
+                                <input type="checkbox" name="isRainbow" id="rainbowToggle" 
+                                    class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out <%= user.moots.color === 'rainbow' ? 'right-0 border-green-400' : 'left-0 border-gray-500' %>" 
+                                    <%= user.moots.color === 'rainbow' ? 'checked' : '' %>>
+                                <label for="rainbowToggle" class="toggle-label block overflow-hidden h-5 rounded-full bg-gray-700 cursor-pointer"></label>
+                            </div>
+                        </label>
+                    <% } %>
+
+                    <label class="bg-dark-900/50 text-gray-300 text-xs rounded-xl px-3 py-3 border border-dark-700 text-center cursor-pointer hover:bg-dark-800 transition flex items-center justify-center gap-2 hover:border-gray-500">
+                        <i data-lucide="image" class="w-3 h-3"></i> Ganti Foto Profil
+                        <input type="file" name="profilePic" class="hidden" accept="image/png, image/jpeg, image/gif">
+                    </label>
+                    
+                    <button type="submit" class="w-full bg-gradient-to-r from-primary-600 to-purple-600 hover:opacity-90 text-white text-xs font-bold py-3 rounded-xl transition shadow-lg shadow-primary-600/20 active:scale-[0.98]">
+                        Simpan Perubahan
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    lucide.createIcons();
+    const socket = io({ query: { userId: '<%= user.id %>' } });
+    const myId = '<%= user.id %>';
+
+    // --- FRIEND SYSTEM LOGIC ---
+    function searchUser() {
+        const query = document.getElementById('searchInput').value;
+        if(query.trim().length < 3) return alert('Ketik minimal 3 huruf');
+        
+        // Loading State
+        const btn = document.querySelector('button[onclick="searchUser()"]');
+        const originalIcon = btn.innerHTML;
+        btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
+        
+        socket.emit('search_user', { query, userId: myId });
+        
+        // Fallback reset icon
+        setTimeout(() => { if(btn.innerHTML.includes('spin')) btn.innerHTML = originalIcon; }, 3000);
+    }
+
+    socket.on('search_result', (results) => {
+        const div = document.getElementById('searchResults');
+        div.innerHTML = '';
+        
+        // Reset Search Button Icon
+        const btn = document.querySelector('button[onclick="searchUser()"]');
+        if(btn) btn.innerHTML = '<i data-lucide="search" class="w-4 h-4"></i>';
+        lucide.createIcons();
+
+        if(results.length === 0) {
+            div.innerHTML = '<p class="text-gray-500 text-[10px] text-center italic py-2">User tidak ditemukan / sudah berteman.</p>';
+            return;
+        }
+        
+        results.forEach(u => {
+            let actionBtn = `<button onclick="friendAction('add', '${u.id}')" class="bg-primary-600 text-white text-[10px] px-3 py-1.5 rounded-lg hover:bg-primary-500 transition font-bold shadow-lg shadow-primary-600/20">Add Friend</button>`;
+            
+            if(u.status === 'pending') {
+                actionBtn = `<span class="text-[10px] text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/20">Pending</span>`;
+            }
+            
+            div.innerHTML += `
+                <div class="bg-dark-900/80 p-2.5 rounded-xl flex justify-between items-center border border-dark-700 animate-fade-in hover:border-gray-600 transition">
+                    <div class="flex items-center gap-3">
+                        <img src="${u.pic}" class="w-8 h-8 rounded-full object-cover bg-dark-800">
+                        <span class="text-white text-xs font-bold">${u.username}</span>
+                    </div>
+                    ${actionBtn}
+                </div>`;
+        });
+    });
+
+    function friendAction(action, targetId) {
+        socket.emit('friend_action', { action, targetId, userId: myId });
+        
+        // Optimistic UI Update (Opsional)
+        if(action === 'add') {
+            const btn = event.target;
+            btn.innerHTML = 'Sending...';
+            btn.disabled = true;
+        }
+    }
+
+    socket.on('friend_msg', (msg) => { 
+        alert(msg); 
+        document.getElementById('searchResults').innerHTML = ''; 
+        document.getElementById('searchInput').value = ''; 
+    });
+    
+    socket.on('refresh_dashboard', () => {
+        window.location.reload();
+    });
+
+    // --- UI TOGGLES ---
+    const toggle = document.getElementById('rainbowToggle');
+    const picker = document.getElementById('colorPicker');
+    
+    if(toggle && picker) {
+        function updateState() {
+            if(toggle.checked) {
+                toggle.classList.add('right-0', 'border-green-400');
+                toggle.classList.remove('left-0', 'border-gray-500');
+                picker.style.opacity = '0.2'; 
+                picker.style.pointerEvents = 'none';
+            } else {
+                toggle.classList.add('left-0', 'border-gray-500');
+                toggle.classList.remove('right-0', 'border-green-400');
+                picker.style.opacity = '1'; 
+                picker.style.pointerEvents = 'auto';
+            }
+        }
+        
+        toggle.addEventListener('change', updateState);
+        updateState();
+    }
+</script>
+<%- include('partials/system_scripts') %>
+<%- include('partials/broadcast_modal') %>
+</body>
+</html>

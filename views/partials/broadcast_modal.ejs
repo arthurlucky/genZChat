@@ -1,0 +1,62 @@
+<div id="toastNotification" class="fixed top-5 right-5 z-[9999] transform translate-x-full transition-transform duration-300 ease-out max-w-sm w-full md:w-80">
+    <div class="bg-gray-800 border-l-4 border-indigo-500 rounded-lg shadow-2xl p-4 flex items-start gap-3 relative overflow-hidden">
+        
+        <div class="absolute inset-0 bg-indigo-500 opacity-5 pointer-events-none"></div>
+
+        <div class="flex-shrink-0 mt-0.5">
+            <div class="bg-indigo-500/20 p-2 rounded-full">
+                <i class="fas fa-bell text-indigo-400"></i>
+            </div>
+        </div>
+
+        <div class="flex-1">
+            <h4 class="text-sm font-bold text-white mb-0.5" id="toastTitle">Notifikasi Baru</h4>
+            <p class="text-xs text-gray-300 leading-snug" id="toastBody">
+                Isi pesan notifikasi...
+            </p>
+        </div>
+
+        <button onclick="hideToast()" class="text-gray-500 hover:text-white transition">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    var socket = window.socket || io();
+    let toastTimeout;
+
+    // AUDIO NOTIFIKASI (Opsional: Pastikan ada file sounds/notify.mp3 atau hapus bagian ini)
+    const notifSound = new Audio('https://cdn.freesound.org/previews/536/536108_10672534-lq.mp3'); 
+
+    socket.on('new_notification', (data) => {
+        const toast = document.getElementById('toastNotification');
+        const title = document.getElementById('toastTitle');
+        const body = document.getElementById('toastBody');
+
+        // 1. Isi Data
+        title.innerText = data.title || "Info Admin";
+        body.innerText = data.body;
+
+        // 2. Mainkan Suara & Getar
+        notifSound.play().catch(e => {}); 
+        if (navigator.vibrate) navigator.vibrate(200);
+
+        // 3. Tampilkan (Slide In)
+        toast.classList.remove('translate-x-full'); // Masuk layar
+        
+        // 4. Reset Timer Lama (Kalau ada notif bertubi-tubi)
+        if (toastTimeout) clearTimeout(toastTimeout);
+
+        // 5. Auto Hilang setelah 5 Detik
+        toastTimeout = setTimeout(() => {
+            hideToast();
+        }, 5000);
+    });
+
+    function hideToast() {
+        const toast = document.getElementById('toastNotification');
+        toast.classList.add('translate-x-full'); // Keluar layar
+    }
+</script>

@@ -1,0 +1,104 @@
+<%- include('partials/header') %>
+<script src="/socket.io/socket.io.js"></script>
+
+<div class="flex flex-col h-screen overflow-hidden bg-dark-900">
+    
+    <div class="h-16 flex items-center justify-between px-4 glass z-20 shadow-sm shrink-0">
+        <div class="flex items-center space-x-3">
+            <a href="/dashboard" class="p-2 rounded-full hover:bg-white/5 transition text-gray-300">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"></path></svg>
+            </a>
+            <div>
+                <h1 class="font-bold text-white text-lg leading-tight">Global Room</h1>
+                <p class="text-[10px] text-green-400 flex items-center"><span class="w-1.5 h-1.5 bg-green-400 rounded-full mr-1"></span> Online</p>
+            </div>
+        </div>
+        <img src="<%= user.profilePic %>" class="w-8 h-8 rounded-full border border-gray-600">
+    </div>
+
+    <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4 pb-4">
+        <div class="text-center text-xs text-gray-500 my-4 bg-dark-800 py-1 rounded-full w-fit mx-auto px-4">Encryption is not enabled (Public Chat)</div>
+    </div>
+
+    <div class="p-3 bg-dark-800 border-t border-dark-700 shrink-0 z-20 pb-safe">
+        <form id="chatForm" class="flex items-center gap-2 max-w-3xl mx-auto">
+            <input id="msgInput" type="text" autocomplete="off" 
+                class="flex-1 bg-dark-900 text-white rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 border border-dark-700 transition" 
+                placeholder="Ketik pesan...">
+            
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white p-3 rounded-full shadow-lg transition transform active:scale-90 flex items-center justify-center">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+    const username = "<%= user.username %>";
+    const myPic = "<%= user.profilePic %>";
+    const room = "global";
+
+    socket.emit('join_room', room);
+
+    const msgList = document.getElementById('messages');
+
+    // Auto scroll ke bawah saat load
+    function scrollToBottom() {
+        msgList.scrollTop = msgList.scrollHeight;
+    }
+
+    document.getElementById('chatForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('msgInput');
+        if(input.value.trim()) {
+            const data = { 
+                user: username, 
+                pic: myPic, 
+                text: input.value, 
+                room: room, 
+                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
+            };
+            socket.emit('send_message', data);
+            input.value = '';
+        }
+    });
+
+    socket.on('receive_message', (data) => {
+        const div = document.createElement('div');
+        const isMe = data.user === username;
+        
+        div.className = `flex w-full ${isMe ? 'justify-end' : 'justify-start'}`;
+        
+        let content = '';
+        if(isMe) {
+            content = `
+                <div class="max-w-[75%]">
+                    <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2 shadow-md">
+                        <p class="text-sm leading-relaxed">${data.text}</p>
+                    </div>
+                    <p class="text-[9px] text-gray-500 text-right mt-1 mr-1">${data.time}</p>
+                </div>
+            `;
+        } else {
+            content = `
+                <div class="flex items-end max-w-[80%]">
+                    <img src="${data.pic || '/images/default.png'}" class="w-6 h-6 rounded-full mb-4 mr-2 border border-gray-600">
+                    <div>
+                        <div class="bg-dark-800 text-gray-200 border border-dark-700 rounded-2xl rounded-tl-sm px-4 py-2 shadow-sm">
+                            <p class="text-[10px] font-bold text-indigo-400 mb-0.5">${data.user}</p>
+                            <p class="text-sm leading-relaxed">${data.text}</p>
+                        </div>
+                        <p class="text-[9px] text-gray-500 mt-1 ml-1">${data.time}</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        div.innerHTML = content;
+        msgList.appendChild(div);
+        scrollToBottom();
+    });
+</script>
+</body>
+</html>

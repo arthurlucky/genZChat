@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Music Room - GenZChat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { background-color: #0f172a; overflow: hidden; font-family: sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .vinyl { animation: spin 4s linear infinite; animation-play-state: paused; }
+        .vinyl.playing { animation-play-state: running; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 12px; width: 12px; border-radius: 50%; background: #f43f5e; margin-top: -4px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #334155; border-radius: 2px; }
+        
+        .chat-scroll::-webkit-scrollbar { width: 4px; }
+        .chat-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+    </style>
+</head>
+<body class="text-white h-[100dvh] flex flex-col relative">
+
+    <div class="h-14 shrink-0 flex items-center justify-between px-4 border-b border-white/5 bg-slate-900/50 z-30">
+        <div class="flex items-center gap-3">
+            <a href="/music-list" class="p-2 rounded-full hover:bg-white/10"><i data-lucide="arrow-left" class="w-6 h-6"></i></a>
+            <button onclick="toggleMembers()" class="relative p-2 rounded-full hover:bg-white/10 text-rose-400 group">
+                <i data-lucide="users" class="w-6 h-6"></i>
+                <span id="memberCount" class="absolute top-1 right-0 bg-rose-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-slate-900">0</span>
+            </button>
+        </div>
+        
+        <h1 class="font-bold text-sm tracking-widest text-gray-200">VIBE ROOM</h1>
+        
+        <button onclick="copyLink()" class="p-2 rounded-full hover:bg-white/10 text-rose-400"><i data-lucide="share-2" class="w-6 h-6"></i></button>
+    </div>
+
+    <div class="flex-1 flex flex-col items-center justify-center relative overflow-hidden shrink-0 min-h-[50%]">
+        <div class="absolute inset-0 z-0 opacity-20 blur-3xl bg-gradient-to-b from-rose-900 to-slate-900"></div>
+
+        <div class="relative z-10 w-48 h-48 sm:w-64 sm:h-64 rounded-full bg-black border-4 border-slate-800 shadow-2xl flex items-center justify-center vinyl" id="diskArt">
+            <div class="absolute inset-0 rounded-full border border-white/5" style="background: repeating-radial-gradient(#111 0, #111 2px, #222 3px, #222 4px);"></div>
+            <img src="https://ui-avatars.com/api/?name=Music&background=f43f5e&color=fff" id="songImg" class="w-16 h-16 rounded-full object-cover relative z-20 border-2 border-black">
+        </div>
+
+        <div class="z-10 mt-6 text-center px-6 w-full max-w-md">
+            <h2 id="trackTitle" class="text-lg font-bold truncate">Menunggu Lagu...</h2>
+            <p id="trackUploader" class="text-xs text-gray-400 mt-1 mb-4">-</p>
+
+            <div class="flex items-center gap-2 text-[10px] text-gray-400 mb-4 px-2">
+                <span id="currTime">0:00</span>
+                <input type="range" id="progressBar" value="0" max="100" class="flex-1 cursor-pointer" onchange="seekAudio(this.value)">
+                <span id="durTime">0:00</span>
+            </div>
+
+            <div class="flex items-center justify-center gap-6">
+                <button onclick="changeSong('prev')" class="text-gray-400 hover:text-white"><i data-lucide="skip-back" class="w-6 h-6"></i></button>
+                <button id="btnPlay" onclick="togglePlay()" class="bg-rose-600 hover:bg-rose-500 text-white p-3 rounded-full shadow-lg shadow-rose-600/30 transition active:scale-95">
+                    <i data-lucide="play" class="w-6 h-6 fill-current"></i>
+                </button>
+                <button onclick="changeSong('next')" class="text-gray-400 hover:text-white"><i data-lucide="skip-forward" class="w-6 h-6"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-1 bg-slate-900 border-t border-white/10 flex flex-col z-20 min-h-0">
+        <div class="flex border-b border-white/5">
+            <button onclick="switchTab('playlist')" id="tabPlaylist" class="flex-1 py-3 text-xs font-bold uppercase tracking-wider text-white border-b-2 border-rose-500 bg-white/5 transition">Playlist</button>
+            <button onclick="switchTab('chat')" id="tabChat" class="flex-1 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white transition">Live Chat</button>
+        </div>
+
+        <div id="contentPlaylist" class="flex-1 flex flex-col min-h-0">
+            <div class="flex justify-between items-center p-3 bg-slate-800/30">
+                <span class="text-[10px] text-gray-400">Antrean Lagu</span>
+                <label class="cursor-pointer bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-full text-[10px] font-bold transition flex items-center gap-2">
+                    <i data-lucide="upload-cloud" class="w-3 h-3"></i> Upload
+                    <input type="file" id="fileInput" accept="audio/*" class="hidden" onchange="uploadMusic(this)">
+                </label>
+            </div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-1 chat-scroll" id="playlistContainer"></div>
+        </div>
+
+        <div id="contentChat" class="hidden flex-1 flex flex-col min-h-0 bg-slate-900">
+            <div id="chatContainer" class="flex-1 overflow-y-auto p-3 space-y-2 chat-scroll">
+                <div class="text-center py-4 text-gray-600 text-[10px]">Mulai percakapan...</div>
+            </div>
+            <form id="chatForm" class="p-2 border-t border-white/5 flex gap-2 bg-slate-800">
+                <input type="text" id="chatInput" class="flex-1 bg-slate-900 text-white text-xs rounded-full px-4 py-2 border border-slate-700 outline-none focus:border-rose-500" placeholder="Ketik pesan..." autocomplete="off">
+                <button type="submit" class="bg-rose-600 p-2 rounded-full text-white hover:bg-rose-500 transition">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalMembers" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in" onclick="toggleMembers()">
+        <div class="bg-slate-900 w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-white/5 flex justify-between items-center bg-slate-800/50">
+                <h3 class="font-bold text-white flex items-center gap-2"><i data-lucide="users" class="w-4 h-4 text-rose-400"></i> Sedang Mendengarkan</h3>
+                <button onclick="toggleMembers()" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-2 max-h-60 overflow-y-auto" id="membersList">
+                </div>
+        </div>
+    </div>
+
+    <audio id="audioPlayer"></audio>
+
+<script>
+    lucide.createIcons();
+    
+    // 1. Definisikan ID dulu biar siap
+    const myId = "<%= user.id %>"; 
+    
+    // 2. Konek ke server SAMBIL BAWA ID (Penting!)
+    const socket = io({
+        query: {
+            userId: myId
+        }
+    });
+
+    const roomId = "<%= roomId %>";
+    const audio = document.getElementById('audioPlayer');
+    
+    let playlist = [];
+    let currentIndex = 0;
+
+    socket.emit('join_music_room', roomId);
+
+    // --- MEMBER LIST SOCKET ---
+    socket.on('update_music_members', (users) => {
+        const list = document.getElementById('membersList');
+        const count = document.getElementById('memberCount');
+        
+        // Update Count
+        count.innerText = users.length;
+        
+        // Render List
+        list.innerHTML = '';
+        users.forEach(u => {
+            const isMe = u.id === myId;
+            list.innerHTML += `
+                <div class="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg transition">
+                    <div class="relative">
+                        <img src="${u.pic}" class="w-10 h-10 rounded-full border border-slate-600 object-cover">
+                        <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full"></div>
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold text-gray-200 ${isMe ? 'text-rose-400' : ''}">
+                            ${u.username} ${isMe ? '(Anda)' : ''}
+                        </p>
+                        <p class="text-[10px] text-green-400">Sedang mendengarkan</p>
+                    </div>
+                </div>
+            `;
+        });
+    });
+
+    // --- STANDARD SOCKETS ---
+    socket.on('music_sync_state', (state) => {
+        playlist = state.playlist; currentIndex = state.currentSongIndex;
+        renderPlaylist(); loadSong(currentIndex, false);
+        if(Math.abs(audio.currentTime - state.currentTime) > 2) audio.currentTime = state.currentTime;
+        if(state.isPlaying) { audio.play().catch(console.log); updatePlayButton(true); }
+    });
+
+    socket.on('playlist_update', (nP) => { playlist = nP; renderPlaylist(); if(playlist.length===1) loadSong(0,false); });
+    socket.on('music_action', ({action, data}) => {
+        if(action==='play'){ audio.currentTime=data.time; audio.play(); updatePlayButton(true); }
+        else if(action==='pause'){ audio.pause(); updatePlayButton(false); }
+        else if(action==='seek'){ audio.currentTime=data.time; }
+        else if(action==='change_song'){ currentIndex=data.index; loadSong(currentIndex,true); }
+    });
+
+    socket.on('receive_music_chat', (msg) => {
+        const div = document.createElement('div'); const isMe = msg.username === "<%= user.username %>";
+        div.className = `flex gap-2 ${isMe ? 'justify-end' : 'justify-start'} animate-fade-in`;
+        div.innerHTML = `${!isMe ? `<img src="${msg.pic}" class="w-6 h-6 rounded-full border border-slate-700">` : ''}<div class="max-w-[80%]">${!isMe ? `<p class="text-[9px] text-gray-400 ml-1 mb-0.5">${msg.username}</p>` : ''}<div class="px-3 py-1.5 rounded-2xl text-xs ${isMe ? 'bg-rose-600 text-white rounded-tr-none' : 'bg-slate-700 text-gray-200 rounded-tl-none'}">${msg.text}</div><p class="text-[8px] text-gray-500 mt-0.5 ${isMe ? 'text-right' : 'text-left'}">${msg.time}</p></div>`;
+        const c = document.getElementById('chatContainer'); c.appendChild(div); c.scrollTop = c.scrollHeight;
+        if(document.getElementById('contentChat').classList.contains('hidden')) {
+            const t = document.getElementById('tabChat'); t.classList.add('text-rose-400'); t.innerText = "Live Chat •";
+        }
+    });
+
+    // --- FUNCTIONS ---
+    function toggleMembers() {
+        const m = document.getElementById('modalMembers');
+        m.classList.toggle('hidden');
+    }
+
+    function loadSong(i, play) {
+        if(!playlist[i]) return;
+        document.getElementById('trackTitle').innerText = playlist[i].title;
+        document.getElementById('trackUploader').innerText = "by " + playlist[i].uploader;
+        audio.src = playlist[i].url;
+        renderPlaylist();
+        if(play) { audio.play(); updatePlayButton(true); }
+    }
+
+    function togglePlay() { 
+        if(!playlist.length) return alert("Playlist kosong!"); 
+        socket.emit('music_control', {roomId, action: audio.paused?'play':'pause', data:{time:audio.currentTime}}); 
+    }
+    function changeSong(dir) {
+        let i = currentIndex + (dir==='next'?1:-1); if(i>=playlist.length)i=0; if(i<0)i=playlist.length-1;
+        socket.emit('music_control', {roomId, action:'change_song', data:{index:i}});
+    }
+    function seekAudio(v) { socket.emit('music_control', {roomId, action:'seek', data:{time:(v/100)*audio.duration}}); }
+    function updatePlayButton(p) { 
+        document.getElementById('btnPlay').innerHTML = `<i data-lucide="${p?'pause':'play'}" class="w-6 h-6 fill-current"></i>`;
+        p ? document.getElementById('diskArt').classList.add('playing') : document.getElementById('diskArt').classList.remove('playing');
+        lucide.createIcons();
+    }
+    
+    audio.addEventListener('timeupdate', () => {
+        document.getElementById('progressBar').value = (audio.currentTime/audio.duration)*100||0;
+        document.getElementById('currTime').innerText = fmt(audio.currentTime);
+        document.getElementById('durTime').innerText = fmt(audio.duration||0);
+    });
+    audio.addEventListener('ended', () => changeSong('next'));
+    function fmt(s){const m=Math.floor(s/60),sc=Math.floor(s%60);return `${m}:${sc<10?'0'+sc:sc}`;}
+
+    function renderPlaylist() {
+        const el = document.getElementById('playlistContainer'); el.innerHTML = '';
+        playlist.forEach((s, i) => {
+            el.innerHTML += `<div onclick="socket.emit('music_control',{roomId,action:'change_song',data:{index:${i}}})" class="p-2 rounded flex justify-between items-center cursor-pointer hover:bg-white/5 ${i===currentIndex?'bg-rose-600/20 border-l-2 border-rose-500':''}"><div class="flex gap-3 overflow-hidden"><span class="text-xs text-gray-500 font-mono self-center">${i+1}</span><div class="min-w-0"><h4 class="text-xs font-bold text-gray-200 truncate">${s.title}</h4><p class="text-[9px] text-gray-500 truncate">${s.uploader}</p></div></div>${i===currentIndex?'<i data-lucide="bar-chart-2" class="w-3 h-3 text-rose-400"></i>':''}</div>`;
+        });
+        lucide.createIcons();
+    }
+
+    async function uploadMusic(inp) {
+        const f = inp.files[0]; if(!f) return;
+        const fd = new FormData(); fd.append('musicFile', f); fd.append('roomId', roomId);
+        inp.parentElement.innerHTML = '...';
+        await fetch('/music/upload', {method:'POST', body:fd});
+        inp.value = '';
+    }
+
+    function switchTab(t) {
+        const tp = document.getElementById('tabPlaylist'), tc = document.getElementById('tabChat');
+        const cp = document.getElementById('contentPlaylist'), cc = document.getElementById('contentChat');
+        if(t==='playlist') {
+            tp.className="flex-1 py-3 text-xs font-bold uppercase tracking-wider text-white border-b-2 border-rose-500 bg-white/5 transition";
+            tc.className="flex-1 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white transition";
+            cp.classList.remove('hidden'); cc.classList.add('hidden');
+        } else {
+            tc.className="flex-1 py-3 text-xs font-bold uppercase tracking-wider text-white border-b-2 border-rose-500 bg-white/5 transition";
+            tp.className="flex-1 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white transition";
+            tc.innerText="Live Chat"; tc.classList.remove('text-rose-400');
+            cc.classList.remove('hidden'); cp.classList.add('hidden');
+            document.getElementById('chatContainer').scrollTop = document.getElementById('chatContainer').scrollHeight;
+        }
+    }
+
+    document.getElementById('chatForm').addEventListener('submit',e=>{e.preventDefault();const i=document.getElementById('chatInput');if(i.value.trim()){socket.emit('send_music_chat',{roomId,message:i.value.trim(),userId:myId});i.value='';}});
+    function copyLink() { navigator.clipboard.writeText(location.href); alert('Link room disalin!'); }
+</script>
+</body>
+</html>

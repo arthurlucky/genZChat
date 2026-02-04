@@ -1,0 +1,346 @@
+<%- include('partials/header') %>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+    tailwind.config = {
+        theme: {
+            extend: { colors: { dark: { 900: '#0f172a', 800: '#1e293b', 700: '#334155' } } }
+        }
+    }
+</script>
+
+<div class="min-h-screen bg-dark-900 text-gray-100 p-4 pb-20 font-sans relative">
+    
+    <div class="max-w-6xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400">
+                Admin Control
+            </h1>
+            <p class="text-gray-400 text-xs mt-1">Manage Users, Roles & System Settings</p>
+        </div>
+        <a href="/dashboard" class="bg-dark-800 hover:bg-dark-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium border border-dark-700 transition flex items-center gap-2 shadow-lg">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl">
+            <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+                <i class="fas fa-bullhorn text-yellow-500"></i> Broadcast
+            </h3>
+            <form action="/admin/broadcast" method="POST" class="space-y-3">
+                <textarea name="message" rows="2" placeholder="Tulis pengumuman..." required 
+                    class="w-full bg-dark-900 border border-dark-700 rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-yellow-500 outline-none resize-none"></textarea>
+                <button type="submit" class="w-full bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 text-black font-bold py-2.5 rounded-xl text-sm transition transform active:scale-95">
+                    Kirim Broadcast
+                </button>
+            </form>
+        </div>
+        <div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl flex flex-col justify-between">
+            <div>
+                <h3 class="font-bold text-white mb-1 flex items-center gap-2">
+                    <i class="fas fa-tools text-red-500"></i> Maintenance
+                </h3>
+                <p class="text-xs text-gray-400 mb-4">Status: 
+                    <span class="<%= settings.maintenance ? 'text-red-400 font-bold' : 'text-green-400 font-bold' %>">
+                        <%= settings.maintenance ? 'LOCKED' : 'LIVE' %>
+                    </span>
+                </p>
+            </div>
+            <form action="/admin/toggle-maintenance" method="POST">
+                <button type="submit" class="w-full py-2.5 rounded-xl text-sm font-bold text-white transition transform active:scale-95 <%= settings.maintenance ? 'bg-green-600 hover:bg-green-500' : 'bg-red-600 hover:bg-red-500' %>">
+                    <%= settings.maintenance ? 'Buka Server' : 'Tutup Server' %>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
+     
+        <div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl flex flex-col h-[700px]">
+            
+            <div class="flex flex-col gap-3 mb-4">
+                <div class="flex justify-between items-center">
+                    <h3 class="font-bold text-white flex items-center gap-2"><i class="fas fa-users text-indigo-400"></i> User List</h3>
+                    <div class="flex gap-2 items-center">
+                        <span class="text-xs bg-dark-700 px-2 py-1 rounded text-gray-300" id="userCountBadge"><%= users.length %></span>
+                        <button onclick="document.getElementById('createUserModal').classList.remove('hidden')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded text-xs transition">
+                            <i class="fas fa-plus"></i> New
+                        </button>
+                    </div>
+                </div>
+
+                <div class="relative w-full">
+                    <input type="text" id="userSearchInput" onkeyup="filterUsers()" 
+                        placeholder="Cari Username atau ID..." 
+                        class="w-full bg-dark-900 border border-dark-700 rounded-xl py-2 pl-9 pr-4 text-sm text-white focus:border-indigo-500 outline-none transition placeholder-gray-600">
+                    <div class="absolute left-3 top-2.5 text-gray-500 pointer-events-none">
+                        <i class="fas fa-search text-xs"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="userListContainer" class="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                <% users.forEach(u => { %>
+                <div class="user-item bg-dark-900 p-4 rounded-xl border border-dark-700 hover:border-indigo-500/30 transition group relative"
+                     data-username="<%= u.username.toLowerCase() %>" 
+                     data-id="<%= u.id.toLowerCase() %>">
+                    
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <img src="<%= u.profilePic %>" class="w-10 h-10 rounded-full border border-dark-700">
+                            <div>
+                                <div class="font-bold text-sm text-white flex items-center gap-2">
+                                    <span class="highlight-target"><%= u.username %></span>
+                                    <% if(u.banned) { %><span class="bg-red-500/20 text-red-400 text-[9px] px-1 rounded font-bold">BANNED</span><% } %>
+                                </div>
+                                <div class="text-[10px] text-gray-500 font-mono">ID: <span class="highlight-target"><%= u.id %></span></div>
+                                <div class="text-[10px] text-gray-500"><%= u.email %></div>
+                                
+                                <div class="mt-1 flex items-center gap-2">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-dark-700 text-indigo-300 border border-dark-600">
+                                        <%= u.role %>
+                                    </span>
+                                    <% if(u.roleExpiresAt) { 
+                                        const diff = u.roleExpiresAt - Date.now();
+                                        const isExpired = diff <= 0;
+                                        const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                                    %>
+                                        <span class="text-[9px] <%= isExpired ? 'text-red-400' : 'text-yellow-500' %>">
+                                            <i class="fas fa-clock"></i> <%= isExpired ? 'Expired' : daysLeft + 'd' %>
+                                        </span>
+                                    <% } %>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button onclick="openRoleModal('<%= u.id %>', '<%= u.username %>', '<%= u.role %>')" 
+                                class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-lg shadow-indigo-500/20 flex items-center gap-1">
+                                <i class="fas fa-user-cog"></i> Role
+                            </button>
+
+                            <% if(u.role !== 'admin') { %>
+                                <form action="/admin/ban-user" method="POST" onsubmit="return confirm('<%= u.banned ? 'Unban' : 'Ban' %> user?');">
+                                    <input type="hidden" name="userId" value="<%= u.id %>">
+                                    <button class="w-8 h-8 rounded-lg bg-dark-800 hover:bg-orange-500 text-gray-400 hover:text-white transition flex items-center justify-center border border-dark-700">
+                                        <i class="fas <%= u.banned ? 'fa-check' : 'fa-ban' %>"></i>
+                                    </button>
+                                </form>
+                                <form action="/admin/delete-user" method="POST" onsubmit="return confirm('Hapus Permanen?');">
+                                    <input type="hidden" name="userId" value="<%= u.id %>">
+                                    <button class="w-8 h-8 rounded-lg bg-dark-800 hover:bg-red-600 text-gray-400 hover:text-white transition flex items-center justify-center border border-dark-700">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+                <% }) %>
+                
+                <div id="noUserFound" class="hidden text-center py-10 text-gray-500">
+                    <i class="fas fa-search text-2xl mb-2 opacity-50"></i>
+                    <p class="text-xs">User tidak ditemukan.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-6">
+            <div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl h-[700px] flex flex-col">
+                <h3 class="font-bold text-white mb-4 flex items-center gap-2">
+                    <i class="fas fa-layer-group text-green-400"></i> Manage Roles
+                </h3>
+                
+                <form action="/admin/create-role" method="POST" class="bg-dark-900 p-4 rounded-xl border border-dark-700 mb-4 space-y-3">
+                    <h4 class="text-xs text-gray-400 font-bold uppercase">Buat Role Baru</h4>
+                    <div class="flex gap-2">
+                        <input type="text" name="roleName" placeholder="Nama Role" required class="flex-1 bg-dark-800 border border-dark-700 rounded-lg p-2 text-xs text-white focus:border-green-500 outline-none">
+                        <div class="flex items-center bg-dark-800 rounded-lg border border-dark-700 px-2">
+                            <input type="color" class="w-6 h-6 rounded bg-transparent border-none cursor-pointer" onchange="this.nextElementSibling.value = this.value">
+                            <input type="text" name="roleColor" placeholder="#000" class="w-12 bg-transparent text-xs text-white outline-none text-center font-mono uppercase" required>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 text-xs text-gray-300">
+                        <label class="flex items-center gap-2 cursor-pointer hover:text-white"><input type="checkbox" name="canRgb" class="accent-green-500"> RGB</label>
+                        <label class="flex items-center gap-2 cursor-pointer hover:text-white"><input type="checkbox" name="canGif" class="accent-green-500"> GIF</label>
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 hover:bg-green-500 py-2 rounded-lg text-xs font-bold text-white">Buat Role</button>
+                </form>
+
+                <div class="space-y-2 overflow-y-auto custom-scrollbar flex-1 pr-2">
+                    <% roles.forEach(r => { %>
+                    <div class="bg-dark-900 p-3 rounded-xl flex items-center justify-between border border-dark-700 relative overflow-hidden group">
+                        <div class="absolute left-0 top-0 bottom-0 w-1.5" style="background: <%= r.color %>"></div>
+                        <div class="ml-4">
+                            <h4 class="font-bold text-xs text-white"><%= r.name %></h4>
+                            <div class="flex gap-1 mt-1">
+                                <span class="text-[8px] px-1.5 rounded border border-dark-700 text-gray-400">RGB: <%= r.canRgb ? 'ON' : 'OFF' %></span>
+                            </div>
+                        </div>
+                        <% if(r.name !== 'admin' && r.name !== 'user') { %>
+                            <form action="/admin/delete-role" method="POST" onsubmit="return confirm('Hapus role?');">
+                                <input type="hidden" name="roleId" value="<%= r.id %>">
+                                <button class="text-red-500 hover:text-white hover:bg-red-600 p-1.5 rounded transition"><i class="fas fa-trash text-xs"></i></button>
+                            </form>
+                        <% } %>
+                    </div>
+                    <% }) %>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="roleModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 hidden backdrop-blur-sm transition-opacity opacity-0">
+    <div class="bg-dark-800 border border-indigo-500/50 rounded-2xl shadow-2xl p-6 max-w-sm w-full transform scale-95 transition-transform duration-300">
+        
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                <i class="fas fa-user-tag text-indigo-400"></i> Manage Role
+            </h3>
+            <button onclick="closeRoleModal()" class="text-gray-400 hover:text-white transition">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <div class="bg-dark-900/50 p-3 rounded-lg mb-6 border border-dark-700 flex items-center justify-between">
+            <span class="text-xs text-gray-400">Target User:</span>
+            <span id="modalUsername" class="text-sm font-bold text-indigo-400">Username</span>
+        </div>
+
+        <form action="/admin/update-user" method="POST" class="space-y-5">
+            <input type="hidden" name="userId" id="modalUserId">
+
+            <div class="space-y-1.5">
+                <label class="text-xs font-bold text-gray-300 ml-1">Pilih Role Baru</label>
+                <div class="relative">
+                    <select name="role" id="modalRoleSelect" class="w-full bg-dark-900 border border-dark-700 rounded-xl p-3 text-sm text-white appearance-none outline-none focus:border-indigo-500 transition">
+                        <% roles.forEach(r => { %>
+                            <option value="<%= r.name %>"><%= r.name %></option>
+                        <% }) %>
+                    </select>
+                    <div class="absolute right-3 top-3.5 text-gray-500 pointer-events-none">
+                        <i class="fas fa-chevron-down text-xs"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="text-xs font-bold text-gray-300 ml-1">Batas Waktu Role (Opsional)</label>
+                <div class="flex items-center gap-0 group focus-within:ring-1 focus-within:ring-indigo-500 rounded-xl">
+                    <input type="number" name="timeValue" placeholder="0" min="0" 
+                        class="w-1/3 bg-dark-900 border border-dark-700 border-r-0 rounded-l-xl p-3 text-sm text-white text-center outline-none">
+                    
+                    <select name="timeUnit" class="flex-1 bg-dark-900 border border-dark-700 border-l-0 rounded-r-xl p-3 text-sm text-gray-300 outline-none cursor-pointer hover:bg-dark-800 transition">
+                        <option value="permanent">Selamanya (Permanen)</option>
+                        <option value="days">Hari</option>
+                        <option value="hours">Jam</option>
+                        <option value="minutes">Menit</option>
+                        <option value="seconds">Detik</option>
+                    </select>
+                </div>
+                <p class="text-[10px] text-gray-500 ml-1">*Isi 0 atau pilih 'Selamanya' untuk role permanen.</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 pt-2">
+                <button type="button" onclick="closeRoleModal()" class="py-2.5 rounded-xl text-sm font-bold text-gray-300 bg-dark-700 hover:bg-dark-600 transition">
+                    Batal
+                </button>
+                <button type="submit" class="py-2.5 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 transition shadow-lg shadow-indigo-500/20">
+                    Simpan Perubahan
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="createUserModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 hidden backdrop-blur-sm">
+    <div class="bg-dark-800 border border-dark-700 rounded-2xl p-6 w-full max-w-sm">
+        <h3 class="text-lg font-bold text-white mb-4">Tambah User Baru</h3>
+        <form action="/admin/create-user" method="POST" class="space-y-3">
+            <input type="text" name="username" placeholder="Username" required class="w-full bg-dark-900 border border-dark-700 rounded-lg p-2 text-sm text-white">
+            <input type="email" name="email" placeholder="Email" required class="w-full bg-dark-900 border border-dark-700 rounded-lg p-2 text-sm text-white">
+            <input type="password" name="password" placeholder="Password" required class="w-full bg-dark-900 border border-dark-700 rounded-lg p-2 text-sm text-white">
+            <select name="role" class="w-full bg-dark-900 border border-dark-700 rounded-lg p-2 text-sm text-white">
+                <% roles.forEach(r => { %><option value="<%= r.name %>"><%= r.name %></option><% }) %>
+            </select>
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="document.getElementById('createUserModal').classList.add('hidden')" class="flex-1 bg-dark-700 text-white py-2 rounded-lg text-sm">Batal</button>
+                <button type="submit" class="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm">Buat</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // --- FITUR SEARCH FILTER ---
+    function filterUsers() {
+        const input = document.getElementById('userSearchInput');
+        const filter = input.value.toLowerCase();
+        const container = document.getElementById('userListContainer');
+        const items = container.getElementsByClassName('user-item');
+        const noUserMsg = document.getElementById('noUserFound');
+        let visibleCount = 0;
+
+        for (let i = 0; i < items.length; i++) {
+            const username = items[i].getAttribute('data-username');
+            const id = items[i].getAttribute('data-id');
+            
+            // Cek apakah username atau ID mengandung text pencarian
+            if (username.includes(filter) || id.includes(filter)) {
+                items[i].style.display = "";
+                visibleCount++;
+            } else {
+                items[i].style.display = "none";
+            }
+        }
+
+        // Tampilkan pesan jika kosong
+        if (visibleCount === 0) {
+            noUserMsg.classList.remove('hidden');
+        } else {
+            noUserMsg.classList.add('hidden');
+        }
+    }
+
+    // --- FITUR MODAL ---
+    function openRoleModal(id, username, currentRole) {
+        const modal = document.getElementById('roleModal');
+        const content = modal.querySelector('div');
+
+        // Isi Data ke Form
+        document.getElementById('modalUserId').value = id;
+        document.getElementById('modalUsername').innerText = username;
+        document.getElementById('modalRoleSelect').value = currentRole;
+
+        // Tampilkan Modal
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            content.classList.remove('scale-95');
+            content.classList.add('scale-100');
+        }, 10);
+    }
+
+    function closeRoleModal() {
+        const modal = document.getElementById('roleModal');
+        const content = modal.querySelector('div');
+
+        modal.classList.add('opacity-0');
+        content.classList.remove('scale-100');
+        content.classList.add('scale-95');
+
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300);
+    }
+</script>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #111827; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+</style>
