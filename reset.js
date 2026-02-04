@@ -2,42 +2,39 @@ const fs = require('fs');
 const path = require('path');
 
 // --- KONFIGURASI PATH ---
-const dbPath = path.join(__dirname, 'database', 'data.json');
+// Target ke database SQLite, bukan data.json lagi
+const dbPath = path.join(__dirname, 'database', 'genzchat.db'); 
+const oldDbPath = path.join(__dirname, 'database', 'data.json'); // Bersihkan sisa legacy juga
+
 const uploadsPath = path.join(__dirname, 'public', 'uploads');
-const sessionsPath = path.join(__dirname, 'sessions'); // TAMBAHAN: Folder Sesi
+const sessionsPath = path.join(__dirname, 'sessions'); 
 
-// --- DATA DEFAULT (Initial State) ---
-const defaultData = {
-    users: [],
-    rooms: [],
-    otp: [],
-    roles: [
-        { 
-            id: 'admin', 
-            name: 'admin', 
-            color: 'linear-gradient(to right, #ff00cc, #333399)', 
-            canRgb: true, 
-            canGif: true 
-        },
-        { 
-            id: 'user', 
-            name: 'user', 
-            color: '#ffffff', 
-            canRgb: false, 
-            canGif: false 
-        }
-    ]
-};
+console.log('\n🔄 MEMULAI PROSES RESET SYSTEM (SQLITE VERSION)...\n');
 
-console.log('\n🔄 MEMULAI PROSES RESET SYSTEM...\n');
-
-// 1. RESET DATABASE
+// 1. RESET DATABASE (HAPUS FILE .DB)
 try {
-    const dbDir = path.dirname(dbPath);
-    if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+    let deleted = false;
 
-    fs.writeFileSync(dbPath, JSON.stringify(defaultData, null, 2));
-    console.log('✅ Database (data.json) berhasil di-reset.');
+    // Hapus Database SQLite Utama
+    if (fs.existsSync(dbPath)) {
+        fs.unlinkSync(dbPath);
+        console.log('✅ Database SQLite (genzchat.db) berhasil dihapus.');
+        deleted = true;
+    }
+
+    // Hapus Sisa JSON Lama (Jika ada)
+    if (fs.existsSync(oldDbPath)) {
+        fs.unlinkSync(oldDbPath);
+        console.log('🗑️  Sisa database lama (data.json) berhasil dibersihkan.');
+        deleted = true;
+    }
+
+    if (!deleted) {
+        console.log('ℹ️  Tidak ada database yang ditemukan untuk dihapus.');
+    } else {
+        console.log('   (Database akan dibuat ulang otomatis saat server dijalankan)');
+    }
+
 } catch (err) {
     console.error('❌ Gagal mereset database:', err.message);
 }
@@ -48,7 +45,8 @@ try {
         const files = fs.readdirSync(uploadsPath);
         let deletedCount = 0;
         for (const file of files) {
-            if (file !== '.gitkeep') { // Jangan hapus .gitkeep
+            // Hapus semua file kecuali .gitkeep
+            if (file !== '.gitkeep') { 
                 fs.unlinkSync(path.join(uploadsPath, file));
                 deletedCount++;
             }
@@ -62,7 +60,7 @@ try {
     console.error('❌ Gagal membersihkan uploads:', err.message);
 }
 
-// 3. BERSIHKAN SESI LOGIN (TAMBAHAN PENTING)
+// 3. BERSIHKAN SESI LOGIN
 try {
     if (fs.existsSync(sessionsPath)) {
         // Hapus folder sessions beserta isinya
@@ -78,4 +76,7 @@ try {
     console.error('❌ Gagal membersihkan sessions:', err.message);
 }
 
-console.log('\n✨ RESET SELESAI! Silakan jalankan "npm start" dan daftar akun baru.\n');
+console.log('\n✨ RESET SELESAI!');
+console.log('👉 Langkah selanjutnya:');
+console.log('1. Jalankan: node setup.js --build (Untuk buat admin baru)');
+console.log('2. Jalankan: node server.js\n');
