@@ -205,6 +205,34 @@ function setMaintenance(status) {
     db.prepare("UPDATE system_settings SET value=? WHERE key='maintenance'").run(JSON.stringify({ active: status }));
 }
 
+// --- HELPER TAMBAHAN (Wajib untuk fitur Join/Group) ---
+function createSystemMessage(roomId, text) {
+    const row = db.prepare('SELECT messages FROM rooms WHERE id = ?').get(roomId);
+    if (!row) return;
+
+    const messages = JSON.parse(row.messages || '[]');
+    const msg = {
+        id: uuidv4(), 
+        userId: 'system', 
+        username: 'System', 
+        pic: '',
+        type: 'system', 
+        content: text,
+        timestamp: Date.now(), 
+        time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),
+        readBy: [], 
+        reactions: {}
+    };
+
+    messages.push(msg);
+    // Update kolom messages saja
+    db.prepare('UPDATE rooms SET messages = ? WHERE id = ?').run(JSON.stringify(messages), roomId);
+    io.to(roomId).emit('receive_message', msg);
+}
+
+
+
+
 // ============================================================
 // 2. CONFIGURATION & SETUP
 // ============================================================
@@ -717,13 +745,38 @@ app.post('/admin/ban-user', protect, adminOnly, (req, res) => {
     res.redirect('/admin');
 });
 
+// --- REPLACE EXISTING /admin/update-user ---
 app.post('/admin/update-user', protect, adminOnly, (req, res) => {
     const u = getUser(req.body.userId);
     if(u) {
         u.role = req.body.role;
-        // Role expires logic here...
+        
+        // LOGIKA TIME LIMIT (YANG HILANG)
+        const val = parseInt(req.body.timeValue);
+        const unit = req.body.timeUnit;
+        
+        if (val && val > 0 && unit !== 'permanent') {
+            let mult = 0;
+            if (unit === 'seconds') mult = 1000;
+            else if (unit === 'minutes') mult = 60000;
+            else if (unit === 'hours') mult = 3600000;
+            else if (unit === 'days') mult = 86400000;
+            
+            // Disimpan ke JSON 'data' via saveUser karena tidak ada kolom roleExpiresAt
+            u.roleExpiresAt = Date.now() + (val * mult); 
+        } else {
+            u.roleExpiresAt = null;
+        }
+        
         saveUser(u);
     }
+    res.redirect('/admin');
+});
+
+// --- ROUTE BARU: ADMIN BROADCAST ---
+app.post('/admin/broadcast', protect, adminOnly, (req, res) => {
+    const msg = req.body.message;
+    io.emit('new_notification', { title: '討 PENGUMUMAN ADMIN', body: msg });
     res.redirect('/admin');
 });
 
@@ -818,6 +871,104 @@ app.post('/chat/create-private', protect, (req, res) => {
     createRoom(nr);
     res.redirect(`/chat/${nr.id}`);
 });
+
+
+// --- STANDALONE UPDATE USERNAME (Kompatibilitas Frontend) ---
+app.post('/update-username', protect, (req, res) => {
+    // Ambil data user terbaru dari DB
+    const u = getUser(req.session.user.id);
+    const newName = req.body.newUsername || req.body.username; 
+
+    if (u && newName) {
+        // Cek apakah username sudah dipakai orang lain (SQLite Version)
+        // Query: Pilih ID dari users dimana username = newName DAN id BUKAN id saya
+        const exist = db.prepare("SELECT id FROM users WHERE username = ? AND id != ?").get(newName, u.id);
+
+        if (exist) {
+            return res.send('<script>alert("Username sudah digunakan!"); window.location.href="/dashboard";</script>');
+        }
+        
+        // Update Username
+        u.username = newName;
+        
+        // Update Avatar jika masih menggunakan default UI Avatars
+        if (u.profilePic && u.profilePic.includes('ui-avatars.com')) {
+            u.profilePic = `https://ui-avatars.com/api/?name=${newName}`;
+        }
+        
+        // Simpan perubahan ke Database SQLite
+        saveUser(u);
+        
+        // Update Session agar perubahan langsung terasa tanpa relogin
+        req.session.user = u;
+        req.session.save((err) => {
+            if(err) console.log(err);
+            res.redirect('/dashboard');
+        });
+    } else {
+        res.redirect('/dashboard');
+    }
+});
+
+
+
+
+// --- ROUTE BARU: UPDATE GROUP ICON ---
+app.post('/chat/update-group-icon', protect, upload.single('groupIcon'), (req, res) => {
+    const row = db.prepare("SELECT * FROM rooms WHERE id = ?").get(req.body.roomId);
+    if(row && req.file) {
+        const settings = JSON.parse(row.settings || '{}');
+        settings.icon = `/uploads/${req.file.filename}`; // Update path icon di settings
+        
+        db.prepare("UPDATE rooms SET settings = ? WHERE id = ?")
+          .run(JSON.stringify(settings), req.body.roomId);
+          
+        res.json({success: true});
+    } else {
+        res.json({success: false});
+    }
+});
+
+
+app.get('/join-group/:code', protect, (req, res) => {
+    // SQLite agak sulit filter JSON langsung tanpa extension, jadi kita fetch manual
+    // Catatan: Untuk produksi, gunakan json_extract di query SQL jika SQLite version mendukung
+    const allGroups = db.prepare("SELECT * FROM rooms WHERE type='group'").all();
+    
+    const roomRaw = allGroups.find(r => {
+        const s = JSON.parse(r.settings || '{}');
+        return s.inviteCode === req.params.code;
+    });
+    
+    if(!roomRaw) return res.send(`<h1 style="text-align:center;">Link Invalid</h1><center><a href="/dashboard">Back</a></center>`);
+    
+    const myId = req.session.user.id;
+    const members = JSON.parse(roomRaw.members || '[]');
+    
+    // 1. Cek Blokir oleh Admin Grup
+    const adminMember = members.find(m => m.role === 'admin');
+    if (adminMember) {
+        const adminUser = getUser(adminMember.userId);
+        if (adminUser && adminUser.blocked.includes(myId)) {
+            return res.send('<h2 style="color:red; text-align:center;">Anda diblokir oleh Admin grup ini.</h2>');
+        }
+    }
+
+    // 2. Proses Join
+    const isMember = members.find(m => m.userId === myId);
+    if(!isMember) {
+        members.push({ userId: myId, role: 'member' });
+        
+        db.prepare("UPDATE rooms SET members = ? WHERE id = ?")
+          .run(JSON.stringify(members), roomRaw.id);
+          
+        const u = getUser(myId);
+        createSystemMessage(roomRaw.id, `${u.username} bergabung melalui tautan`);
+    }
+    
+    res.redirect(`/chat/${roomRaw.id}`);
+});
+
 
 app.post('/chat/create-group', protect, upload.single('groupIcon'), (req, res) => {
     const nr = {
